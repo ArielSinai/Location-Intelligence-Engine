@@ -21,8 +21,8 @@ class Settings(BaseSettings):
     embedding_model: str = "all-MiniLM-L6-v2"
 
     # H3 grid resolution
-    # 8  → avg cell area ~0.74 km²  (good for neighborhoods)
-    # 7  → avg cell area ~5.16 km²  (good for districts)
+    # 8 → avg cell area ~0.74 km²  (good for neighborhoods)
+    # 7 → avg cell area ~5.16 km²  (good for districts)
     h3_resolution: int = 8
 
     # Overpass API
