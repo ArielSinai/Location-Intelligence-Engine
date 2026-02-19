@@ -18,8 +18,12 @@ def get_embedding_generator() -> EmbeddingGenerator:
 
 
 def get_driver():
-    """Provide a connected Neo4j driver."""
-    return GraphDatabase.driver(
+    """Provide a connected Neo4j driver, closed automatically after each request."""
+    driver = GraphDatabase.driver(
         settings.neo4j_uri,
         auth=(settings.neo4j_username, settings.neo4j_password),
     )
+    try:
+        yield driver
+    finally:
+        driver.close()
