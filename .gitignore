@@ -1,3 +1,10 @@
+# Project data (large files — generated locally)
+data/raw/*.json
+data/embeddings/*.npz
+
+# Secrets
+.env
+
 # Byte-compiled / optimized / DLL files
 __pycache__/
 *.py[codz]
