@@ -8,6 +8,8 @@ POST /recommendations
 
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
 import h3
@@ -18,6 +20,8 @@ from embeddings.generator import load_embeddings, EmbeddingGenerator, match_cate
 from graph.queries import get_area_businesses
 from api.dependencies import get_embedding_generator, get_driver
 from config import settings
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -189,7 +193,8 @@ def _load_embeddings_safe() -> tuple[list[str], np.ndarray]:
     try:
         _embeddings_cache = load_embeddings(path)
         return _embeddings_cache
-    except Exception:
+    except Exception as e:
+        logger.warning("Could not load embeddings from %s: %s", path, e)
         return [], np.empty((0, 384), dtype=np.float32)
 
 
