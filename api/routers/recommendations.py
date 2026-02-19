@@ -66,6 +66,25 @@ class RecommendationResponse(BaseModel):
     recommendations: list[RecommendationItem]
 
 
+class HeatmapRequest(BaseModel):
+    bbox: BBoxModel
+    query: str = Field(..., min_length=1)
+
+
+class HeatmapCell(BaseModel):
+    h3_cell: str
+    lat: float
+    lng: float
+    opportunity_score: float
+    competition_density: float
+
+
+class HeatmapResponse(BaseModel):
+    query: str
+    matched_category: str
+    cells: list[HeatmapCell]
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -152,15 +171,25 @@ def _generate_explanation(score: AreaScore, query_category: str) -> str:
     return " ".join(parts)
 
 
+# Loaded from disk once and reused for every subsequent request.
+_embeddings_cache: tuple[list[str], np.ndarray] | None = None
+
+
 def _load_embeddings_safe() -> tuple[list[str], np.ndarray]:
     """
-    Load pre-computed business embeddings.
-    Returns empty structures if the file does not exist yet.
+    Load pre-computed business embeddings, caching the result after the
+    first successful load. Returns empty structures if the file does not
+    exist yet.
     """
+    global _embeddings_cache
+    if _embeddings_cache is not None:
+        return _embeddings_cache
+
     path = settings.embeddings_dir / "embeddings.npz"
     try:
-        return load_embeddings(path)
-    except (FileNotFoundError, Exception):
+        _embeddings_cache = load_embeddings(path)
+        return _embeddings_cache
+    except Exception:
         return [], np.empty((0, 384), dtype=np.float32)
 
 
@@ -225,4 +254,61 @@ def get_recommendations(
         query=request.query,
         matched_category=matched_category,
         recommendations=items,
+    )
+
+
+@router.post("/heatmap", response_model=HeatmapResponse)
+def get_heatmap(
+    request: HeatmapRequest,
+    generator: EmbeddingGenerator = Depends(get_embedding_generator),
+    driver=Depends(get_driver),
+) -> HeatmapResponse:
+    bbox = request.bbox
+
+    # 1. Embed the user's query
+    query_emb = generator.embed_query(request.query)
+
+    # 2. Find all H3 cells inside the requested area
+    cells = _cells_in_bbox(bbox.south, bbox.west, bbox.north, bbox.east)
+
+    # 3. Resolve matched category
+    matched_category = _resolve_category(request.query, query_emb, cells, driver, generator)
+
+    # 4. Load pre-computed business embeddings
+    osm_ids, emb_matrix = _load_embeddings_safe()
+    all_embeddings: dict[str, np.ndarray] = {
+        oid: emb_matrix[i] for i, oid in enumerate(osm_ids)
+    }
+
+    # 5. Score every cell (no top-k cutoff)
+    def get_businesses(cell: str) -> list[dict]:
+        return get_area_businesses(driver, cell)
+
+    all_scores = rank_areas(
+        cells,
+        query_emb,
+        all_embeddings,
+        get_businesses,
+        matched_category,
+        top_k=len(cells),
+    )
+
+    # 6. Attach lat/lng centre of each H3 cell for map rendering
+    heatmap_cells = []
+    for score in all_scores:
+        lat, lng = h3.cell_to_latlng(score.h3_cell)
+        heatmap_cells.append(
+            HeatmapCell(
+                h3_cell=score.h3_cell,
+                lat=lat,
+                lng=lng,
+                opportunity_score=score.opportunity_score,
+                competition_density=score.competition_density,
+            )
+        )
+
+    return HeatmapResponse(
+        query=request.query,
+        matched_category=matched_category,
+        cells=heatmap_cells,
     )
