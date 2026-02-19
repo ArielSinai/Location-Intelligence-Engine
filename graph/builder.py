@@ -7,6 +7,7 @@ Creates and maintains the Neo4j graph structure:
   Edges:   BUSINESS -[:BELONGS_TO]->  CATEGORY
            BUSINESS -[:LOCATED_IN]->  AREA
            AREA     -[:NEAR]->        AREA
+           AREA     -[:CLOSE_TO]->    BUSINESS  (demand anchors only)
 """
 
 from __future__ import annotations
