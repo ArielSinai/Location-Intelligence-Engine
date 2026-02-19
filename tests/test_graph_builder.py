@@ -295,7 +295,7 @@ class TestLinkAreaNeighbors:
         gb.link_area_neighbors(CELL)
         # grid_disk(cell, 1) = cell + 6 neighbours = 7 cells
         # We should create one NEAR edge per neighbour (not self)
-        neighbours = h3.grid_disk(CELL, 1) - {CELL}
+        neighbours = set(h3.grid_disk(CELL, 1)) - {CELL}
         assert mock_driver._mock_session.run.call_count == len(neighbours)
 
     def test_does_not_link_cell_to_itself(self, mock_driver):
