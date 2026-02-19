@@ -1,0 +1,26 @@
+# Data collection
+requests==2.32.3
+shapely==2.0.6
+h3==4.4.2
+
+# Embeddings
+sentence-transformers==3.3.1
+torch==2.5.1
+numpy==2.2.1
+
+# Graph database
+neo4j==5.27.0
+
+# API
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.4
+pydantic-settings==2.7.0
+
+# Utilities
+python-dotenv==1.0.1
+tqdm==4.67.1
+
+# Testing
+pytest==8.3.4
+pytest-mock==3.14.0
