@@ -40,11 +40,12 @@ def get_area_businesses(driver: Driver, h3_cell: str) -> list[dict]:
         result = session.run(
             """
             MATCH (b:Business)-[:LOCATED_IN]->(a:Area {h3_index: $h3_index})
-            RETURN b
+            RETURN b.osm_id AS osm_id, b.name AS name,
+                   b.category AS category, b.h3_cell AS h3_cell
             """,
             h3_index=h3_cell,
         )
-        return [record.data() for record in result]
+        return [dict(record) for record in result]
 
 
 def get_support_pois(driver: Driver, h3_cell: str) -> list[dict]:
