@@ -17,11 +17,13 @@ Final opportunity_score = weighted combination of the four signals.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Callable
 
 import h3
 import numpy as np
+
+from data_collector.normalizer import SUPPORT_CATEGORIES
 
 
 # ---------------------------------------------------------------------------
@@ -37,6 +39,7 @@ class AreaScore:
     diversity_score: float           # 0-1
     similarity_saturation: float     # 0-1
     opportunity_score: float         # 0-1  (higher = better opportunity)
+    support_poi_summary: dict = field(default_factory=dict)  # category → count
 
 
 # ---------------------------------------------------------------------------
@@ -214,6 +217,13 @@ def score_area(
         similarity_saturation,
     )
 
+    # Support POI summary: count demand anchors present in the cell
+    support_poi_summary: dict[str, int] = {}
+    for b in area_businesses:
+        cat = b.get("category", "")
+        if cat in SUPPORT_CATEGORIES:
+            support_poi_summary[cat] = support_poi_summary.get(cat, 0) + 1
+
     return AreaScore(
         h3_cell=h3_cell,
         competition_count=competition_count,
@@ -222,6 +232,7 @@ def score_area(
         diversity_score=diversity_score,
         similarity_saturation=similarity_saturation,
         opportunity_score=opportunity_score,
+        support_poi_summary=support_poi_summary,
     )
 
 

@@ -53,6 +53,7 @@ class TestAreaScore:
         assert hasattr(score, "diversity_score")
         assert hasattr(score, "similarity_saturation")
         assert hasattr(score, "opportunity_score")
+        assert hasattr(score, "support_poi_summary")
 
 
 # ---------------------------------------------------------------------------
@@ -356,6 +357,39 @@ class TestScoreArea:
         embeddings = self._make_embeddings(["0", "1", "2"], query, similar=False)
         result = score_area(CELL_A, query, embeddings, businesses, "cafe")
         assert 0.0 <= result.opportunity_score <= 1.0
+
+    def test_support_poi_summary_is_empty_for_no_anchors(self):
+        from analyzer.opportunity import score_area
+        query = unit([1, 0, 0, 0, 0, 0, 0, 0])
+        businesses = self._make_businesses(["cafe", "gym"])
+        embeddings = self._make_embeddings(["0", "1"], query, similar=False)
+        result = score_area(CELL_A, query, embeddings, businesses, "cafe")
+        assert result.support_poi_summary == {}
+
+    def test_support_poi_summary_counts_university(self):
+        from analyzer.opportunity import score_area
+        query = unit([1, 0, 0, 0, 0, 0, 0, 0])
+        businesses = [
+            {"osm_id": "0", "category": "cafe"},
+            {"osm_id": "1", "category": "university"},
+            {"osm_id": "2", "category": "university"},
+        ]
+        embeddings = self._make_embeddings(["0", "1", "2"], query, similar=False)
+        result = score_area(CELL_A, query, embeddings, businesses, "cafe")
+        assert result.support_poi_summary.get("university") == 2
+
+    def test_support_poi_summary_counts_multiple_types(self):
+        from analyzer.opportunity import score_area
+        query = unit([1, 0, 0, 0, 0, 0, 0, 0])
+        businesses = [
+            {"osm_id": "0", "category": "cafe"},
+            {"osm_id": "1", "category": "office"},
+            {"osm_id": "2", "category": "bus station"},
+        ]
+        embeddings = self._make_embeddings(["0", "1", "2"], query, similar=False)
+        result = score_area(CELL_A, query, embeddings, businesses, "cafe")
+        assert result.support_poi_summary.get("office") == 1
+        assert result.support_poi_summary.get("bus station") == 1
 
 
 # ---------------------------------------------------------------------------

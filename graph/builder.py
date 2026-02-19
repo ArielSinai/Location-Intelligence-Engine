@@ -14,7 +14,7 @@ from __future__ import annotations
 import h3
 from neo4j import Driver
 
-from data_collector.normalizer import BusinessPOI
+from data_collector.normalizer import BusinessPOI, SUPPORT_CATEGORIES
 
 
 class GraphBuilder:
@@ -135,6 +135,24 @@ class GraphBuilder:
                     neighbour_cell=neighbour,
                 )
 
+    def link_area_to_support_poi(self, h3_cell: str, osm_id: str) -> None:
+        """
+        MERGE (Area)-[:CLOSE_TO]->(Business) for a support POI.
+
+        This edge captures demand anchors — universities, offices, transport
+        hubs, and malls — that generate foot traffic near the area.
+        """
+        with self._driver.session() as session:
+            session.run(
+                """
+                MATCH (a:Area {h3_index: $h3_index})
+                MATCH (b:Business {osm_id: $osm_id})
+                MERGE (a)-[:CLOSE_TO]->(b)
+                """,
+                h3_index=h3_cell,
+                osm_id=osm_id,
+            )
+
     # ------------------------------------------------------------------
     # Full pipeline
     # ------------------------------------------------------------------
@@ -169,3 +187,7 @@ class GraphBuilder:
             # Edges
             self.link_business_to_category(poi.osm_id, poi.category)
             self.link_business_to_area(poi.osm_id, poi.h3_cell)
+
+            # CLOSE_TO edge for demand-anchor support POIs
+            if poi.category in SUPPORT_CATEGORIES:
+                self.link_area_to_support_poi(poi.h3_cell, poi.osm_id)

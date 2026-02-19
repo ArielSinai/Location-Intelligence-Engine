@@ -68,6 +68,10 @@ OSM_CATEGORY_MAP: dict[str, dict[str, tuple[str, str]]] = {
         # Finance
         "bank":             ("bank",              "Finance"),
         "atm":              ("atm",               "Finance"),
+        # Transport
+        "bus_station":      ("bus station",       "Transport"),
+        "train_station":    ("train station",     "Transport"),
+        "ferry_terminal":   ("ferry terminal",    "Transport"),
     },
     "shop": {
         # Retail food
@@ -84,6 +88,7 @@ OSM_CATEGORY_MAP: dict[str, dict[str, tuple[str, str]]] = {
         "electronics":      ("electronics store", "Retail – General"),
         "books":            ("bookstore",         "Retail – General"),
         "sports":           ("sports store",      "Retail – General"),
+        "mall":             ("shopping mall",     "Retail – General"),
         # Beauty
         "hairdresser":      ("hair salon",        "Beauty & Wellness"),
         "beauty":           ("beauty salon",      "Beauty & Wellness"),
@@ -122,6 +127,20 @@ OSM_CATEGORY_MAP: dict[str, dict[str, tuple[str, str]]] = {
 
 # Tag keys checked in priority order when looking up the category
 PRIORITY_TAG_KEYS = ["amenity", "shop", "leisure", "tourism", "office", "healthcare"]
+
+# Categories that act as demand anchors / foot-traffic generators.
+# These are used to create AREA -[:CLOSE_TO]-> Business edges in the graph
+# and to enrich recommendation explanations.
+SUPPORT_CATEGORIES: frozenset[str] = frozenset({
+    # Education
+    "university", "college", "school",
+    # Office & work
+    "office", "tech office", "government office", "coworking space",
+    # Transport
+    "bus station", "train station", "ferry terminal",
+    # Commercial anchor
+    "shopping mall",
+})
 
 
 # ---------------------------------------------------------------------------

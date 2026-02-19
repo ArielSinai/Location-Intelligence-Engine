@@ -349,6 +349,54 @@ class TestBuildFromPois:
         gb.build_from_pois([])
         spy_b.assert_not_called()
 
+    def test_links_close_to_for_support_poi(self, mock_driver, mocker):
+        from graph.builder import GraphBuilder
+        from data_collector.normalizer import BusinessPOI
+        gb = GraphBuilder(mock_driver)
+        spy = mocker.patch.object(gb, "link_area_to_support_poi")
+        support_poi = BusinessPOI(
+            osm_id="u1", name="Tel Aviv University", lat=32.07, lon=34.78,
+            category="university", category_group="Education",
+            description="Tel Aviv University university Education",
+            h3_cell=CELL, tags={},
+        )
+        gb.build_from_pois([support_poi])
+        spy.assert_called_once_with(CELL, "u1")
+
+    def test_does_not_link_close_to_for_regular_poi(self, mock_driver, mocker):
+        from graph.builder import GraphBuilder
+        gb = GraphBuilder(mock_driver)
+        spy = mocker.patch.object(gb, "link_area_to_support_poi")
+        gb.build_from_pois([make_poi("1")])   # "cafe" is not a support category
+        spy.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# GraphBuilder — link_area_to_support_poi
+# ---------------------------------------------------------------------------
+
+class TestLinkAreaToSupportPoi:
+    def test_runs_a_query(self, mock_driver):
+        from graph.builder import GraphBuilder
+        gb = GraphBuilder(mock_driver)
+        gb.link_area_to_support_poi(CELL, "u1")
+        assert mock_driver._mock_session.run.called
+
+    def test_query_creates_close_to_relationship(self, mock_driver):
+        from graph.builder import GraphBuilder
+        gb = GraphBuilder(mock_driver)
+        gb.link_area_to_support_poi(CELL, "u1")
+        query = mock_driver._mock_session.run.call_args.args[0]
+        assert "CLOSE_TO" in query
+
+    def test_passes_h3_cell_and_osm_id(self, mock_driver):
+        from graph.builder import GraphBuilder
+        gb = GraphBuilder(mock_driver)
+        gb.link_area_to_support_poi(CELL, "u42")
+        kwargs = mock_driver._mock_session.run.call_args.kwargs
+        assert CELL in str(kwargs)
+        assert "u42" in str(kwargs)
+
 
 # ---------------------------------------------------------------------------
 # queries.py — get_competition_count
@@ -475,3 +523,49 @@ class TestGetNeighborCells:
         mock_driver._mock_session.run.return_value = self._make_cell_records(mocker, neighbours)
         result = get_neighbor_cells(mock_driver, CELL)
         assert len(result) == 3
+
+
+# ---------------------------------------------------------------------------
+# queries.py — get_support_pois
+# ---------------------------------------------------------------------------
+
+class TestGetSupportPois:
+    def _make_records(self, mocker, data: list[dict]):
+        records = []
+        for d in data:
+            r = mocker.MagicMock()
+            r.__iter__ = mocker.MagicMock(return_value=iter(d.items()))
+            # dict(record) is called — make the mock behave like a mapping
+            r.keys.return_value = list(d.keys())
+            r.__getitem__ = mocker.MagicMock(side_effect=d.__getitem__)
+            r.items.return_value = list(d.items())
+            records.append(r)
+        result = mocker.MagicMock()
+        result.__iter__ = mocker.MagicMock(return_value=iter(records))
+        return result
+
+    def test_returns_list(self, mock_driver, mocker):
+        from graph.queries import get_support_pois
+        mock_driver._mock_session.run.return_value = self._make_records(mocker, [])
+        result = get_support_pois(mock_driver, CELL)
+        assert isinstance(result, list)
+
+    def test_empty_cell_returns_empty_list(self, mock_driver, mocker):
+        from graph.queries import get_support_pois
+        mock_driver._mock_session.run.return_value = self._make_records(mocker, [])
+        result = get_support_pois(mock_driver, CELL)
+        assert result == []
+
+    def test_passes_h3_cell_to_query(self, mock_driver, mocker):
+        from graph.queries import get_support_pois
+        mock_driver._mock_session.run.return_value = self._make_records(mocker, [])
+        get_support_pois(mock_driver, CELL)
+        kwargs = mock_driver._mock_session.run.call_args.kwargs
+        assert CELL in str(kwargs)
+
+    def test_query_uses_close_to_relationship(self, mock_driver, mocker):
+        from graph.queries import get_support_pois
+        mock_driver._mock_session.run.return_value = self._make_records(mocker, [])
+        get_support_pois(mock_driver, CELL)
+        query = mock_driver._mock_session.run.call_args.args[0]
+        assert "CLOSE_TO" in query

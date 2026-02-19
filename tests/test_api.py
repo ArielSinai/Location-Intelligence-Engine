@@ -160,6 +160,11 @@ class TestRecommendationItemShape:
         item = self._first(client)
         assert "competition_count" in item
 
+    def test_item_has_support_poi_summary(self, client):
+        item = self._first(client)
+        assert "support_poi_summary" in item
+        assert isinstance(item["support_poi_summary"], dict)
+
     def test_item_has_explanation(self, client):
         item = self._first(client)
         assert "explanation" in item

@@ -56,6 +56,7 @@ class RecommendationItem(BaseModel):
     demand_proxy: float
     diversity_score: float
     similarity_saturation: float
+    support_poi_summary: dict[str, int]
     explanation: str
 
 
@@ -137,6 +138,16 @@ def _generate_explanation(score: AreaScore, query_category: str) -> str:
     elif score.similarity_saturation > 0.7:
         parts.append("High semantic saturation — many similar concepts already operating here.")
 
+    if score.support_poi_summary:
+        anchors = [
+            f"{count} {cat}{'s' if count > 1 else ''}"
+            for cat, count in sorted(score.support_poi_summary.items())
+        ]
+        parts.append(
+            f"Located near {', '.join(anchors)}, "
+            "which increases potential customer traffic."
+        )
+
     parts.append(f"Overall opportunity score: {score.opportunity_score:.0%}.")
     return " ".join(parts)
 
@@ -204,6 +215,7 @@ def get_recommendations(
             demand_proxy=score.demand_proxy,
             diversity_score=score.diversity_score,
             similarity_saturation=score.similarity_saturation,
+            support_poi_summary=score.support_poi_summary,
             explanation=_generate_explanation(score, matched_category),
         )
         for rank, score in enumerate(ranked, start=1)
