@@ -122,19 +122,21 @@ class GraphBuilder:
         """
         For each of the 6 H3 neighbours of *h3_cell*, MERGE an
         (Area)-[:NEAR]->(Area) edge.  The cell itself is excluded.
+        All 6 neighbours are handled in a single query via UNWIND.
         """
-        neighbours = set(h3.grid_disk(h3_cell, 1)) - {h3_cell}
+        neighbours = list(set(h3.grid_disk(h3_cell, 1)) - {h3_cell})
         with self._driver.session() as session:
-            for neighbour in neighbours:
-                session.run(
-                    """
-                    MERGE (a:Area {h3_index: $h3_index})
-                    MERGE (n:Area {h3_index: $neighbour_cell})
-                    MERGE (a)-[:NEAR]->(n)
-                    """,
-                    h3_index=h3_cell,
-                    neighbour_cell=neighbour,
-                )
+            session.run(
+                """
+                MERGE (a:Area {h3_index: $h3_index})
+                WITH a
+                UNWIND $neighbours AS neighbour_cell
+                MERGE (n:Area {h3_index: neighbour_cell})
+                MERGE (a)-[:NEAR]->(n)
+                """,
+                h3_index=h3_cell,
+                neighbours=neighbours,
+            )
 
     def link_area_to_support_poi(self, h3_cell: str, osm_id: str) -> None:
         """
