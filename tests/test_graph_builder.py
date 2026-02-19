@@ -1,26 +1,3 @@
-"""
-TDD tests for graph/builder.py and graph/queries.py
-
-Written BEFORE the implementation.
-
-API under test (builder.py):
-    GraphBuilder(driver)
-      .create_constraints()
-      .upsert_business(poi)
-      .upsert_category(name, group)
-      .upsert_area(h3_cell)
-      .link_business_to_category(osm_id, category)
-      .link_business_to_area(osm_id, h3_cell)
-      .link_area_neighbors(h3_cell)
-      .build_from_pois(pois)
-
-API under test (queries.py):
-    get_competition_count(driver, h3_cell, category)  → int
-    get_area_businesses(driver, h3_cell)              → list[dict]
-    get_neighbor_cells(driver, h3_cell)               → list[str]
-
-The Neo4j driver is always mocked so tests run without a running database.
-"""
 
 import pytest
 import h3
