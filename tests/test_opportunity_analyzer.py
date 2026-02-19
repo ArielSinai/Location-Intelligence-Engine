@@ -1,21 +1,3 @@
-"""
-TDD tests for analyzer/opportunity.py
-
-Written BEFORE the implementation.
-
-API under test:
-    AreaScore                       dataclass holding all scores for one cell
-
-    compute_competition_density(count, cell_area_km2)  → float
-    compute_diversity_score(categories)                → float  (0-1)
-    compute_similarity_saturation(query_emb, embeddings, threshold) → float (0-1)
-    compute_opportunity_score(competition_density, diversity_score,
-                              similarity_saturation, **kwargs) → float (0-1)
-    score_area(h3_cell, query_embedding, area_embeddings,
-               area_businesses, query_category)        → AreaScore
-    rank_areas(cells, query_embedding, all_embeddings,
-               get_businesses_fn, query_category, top_k) → list[AreaScore]
-"""
 
 import numpy as np
 import pytest
