@@ -11,10 +11,16 @@ from neo4j import GraphDatabase
 from config import settings
 from embeddings.generator import EmbeddingGenerator
 
+# Loaded once on first use and reused for every subsequent request.
+_generator: EmbeddingGenerator | None = None
+
 
 def get_embedding_generator() -> EmbeddingGenerator:
-    """Provide a loaded EmbeddingGenerator instance."""
-    return EmbeddingGenerator(settings.embedding_model)
+    """Provide a shared EmbeddingGenerator instance (loaded once)."""
+    global _generator
+    if _generator is None:
+        _generator = EmbeddingGenerator(settings.embedding_model)
+    return _generator
 
 
 def get_driver():
