@@ -29,6 +29,7 @@ class TestAreaScore:
             h3_cell=CELL_A,
             competition_count=3,
             competition_density=4.1,
+            demand_proxy=0.4,
             diversity_score=0.6,
             similarity_saturation=0.2,
             opportunity_score=0.75,
@@ -41,12 +42,14 @@ class TestAreaScore:
             h3_cell=CELL_A,
             competition_count=0,
             competition_density=0.0,
+            demand_proxy=0.0,
             diversity_score=0.0,
             similarity_saturation=0.0,
             opportunity_score=0.0,
         )
         assert hasattr(score, "competition_count")
         assert hasattr(score, "competition_density")
+        assert hasattr(score, "demand_proxy")
         assert hasattr(score, "diversity_score")
         assert hasattr(score, "similarity_saturation")
         assert hasattr(score, "opportunity_score")
@@ -82,6 +85,44 @@ class TestComputeCompetitionDensity:
         low  = compute_competition_density(2, 1.0)
         high = compute_competition_density(10, 1.0)
         assert high > low
+
+
+# ---------------------------------------------------------------------------
+# compute_demand_proxy
+# ---------------------------------------------------------------------------
+
+class TestComputeDemandProxy:
+    def test_zero_businesses_returns_zero(self):
+        from analyzer.opportunity import compute_demand_proxy
+        assert compute_demand_proxy(0) == pytest.approx(0.0)
+
+    def test_max_businesses_returns_one(self):
+        from analyzer.opportunity import compute_demand_proxy
+        assert compute_demand_proxy(50, max_businesses=50) == pytest.approx(1.0)
+
+    def test_above_max_clamps_to_one(self):
+        from analyzer.opportunity import compute_demand_proxy
+        assert compute_demand_proxy(100, max_businesses=50) == pytest.approx(1.0)
+
+    def test_partial_fill_is_proportional(self):
+        from analyzer.opportunity import compute_demand_proxy
+        assert compute_demand_proxy(25, max_businesses=50) == pytest.approx(0.5)
+
+    def test_returns_float(self):
+        from analyzer.opportunity import compute_demand_proxy
+        assert isinstance(compute_demand_proxy(10), float)
+
+    def test_more_businesses_gives_higher_proxy(self):
+        from analyzer.opportunity import compute_demand_proxy
+        low  = compute_demand_proxy(5,  max_businesses=50)
+        high = compute_demand_proxy(40, max_businesses=50)
+        assert high > low
+
+    def test_result_is_between_zero_and_one(self):
+        from analyzer.opportunity import compute_demand_proxy
+        for n in range(0, 60, 5):
+            result = compute_demand_proxy(n, max_businesses=50)
+            assert 0.0 <= result <= 1.0
 
 
 # ---------------------------------------------------------------------------
@@ -188,6 +229,7 @@ class TestComputeOpportunityScore:
         from analyzer.opportunity import compute_opportunity_score
         result = compute_opportunity_score(
             competition_density=2.0,
+            demand_proxy=0.4,
             diversity_score=0.5,
             similarity_saturation=0.3,
         )
@@ -197,24 +239,27 @@ class TestComputeOpportunityScore:
         from analyzer.opportunity import compute_opportunity_score
         result = compute_opportunity_score(
             competition_density=5.0,
+            demand_proxy=0.5,
             diversity_score=0.6,
             similarity_saturation=0.4,
         )
         assert 0.0 <= result <= 1.0
 
-    def test_zero_competition_zero_saturation_max_diversity_is_high(self):
+    def test_zero_competition_max_demand_max_diversity_zero_saturation_is_high(self):
         from analyzer.opportunity import compute_opportunity_score
         result = compute_opportunity_score(
             competition_density=0.0,
+            demand_proxy=1.0,
             diversity_score=1.0,
             similarity_saturation=0.0,
         )
         assert result > 0.7
 
-    def test_max_competition_zero_diversity_max_saturation_is_low(self):
+    def test_max_competition_zero_demand_zero_diversity_max_saturation_is_low(self):
         from analyzer.opportunity import compute_opportunity_score
         result = compute_opportunity_score(
             competition_density=100.0,
+            demand_proxy=0.0,
             diversity_score=0.0,
             similarity_saturation=1.0,
         )
@@ -222,20 +267,26 @@ class TestComputeOpportunityScore:
 
     def test_higher_competition_lowers_score(self):
         from analyzer.opportunity import compute_opportunity_score
-        low_comp  = compute_opportunity_score(1.0, 0.5, 0.3)
-        high_comp = compute_opportunity_score(9.0, 0.5, 0.3)
+        low_comp  = compute_opportunity_score(1.0, 0.5, 0.5, 0.3)
+        high_comp = compute_opportunity_score(9.0, 0.5, 0.5, 0.3)
         assert low_comp > high_comp
+
+    def test_higher_demand_raises_score(self):
+        from analyzer.opportunity import compute_opportunity_score
+        low_demand  = compute_opportunity_score(2.0, 0.1, 0.5, 0.3)
+        high_demand = compute_opportunity_score(2.0, 0.9, 0.5, 0.3)
+        assert high_demand > low_demand
 
     def test_higher_diversity_raises_score(self):
         from analyzer.opportunity import compute_opportunity_score
-        low_div  = compute_opportunity_score(2.0, 0.1, 0.3)
-        high_div = compute_opportunity_score(2.0, 0.9, 0.3)
+        low_div  = compute_opportunity_score(2.0, 0.5, 0.1, 0.3)
+        high_div = compute_opportunity_score(2.0, 0.5, 0.9, 0.3)
         assert high_div > low_div
 
     def test_higher_saturation_lowers_score(self):
         from analyzer.opportunity import compute_opportunity_score
-        low_sat  = compute_opportunity_score(2.0, 0.5, 0.1)
-        high_sat = compute_opportunity_score(2.0, 0.5, 0.9)
+        low_sat  = compute_opportunity_score(2.0, 0.5, 0.5, 0.1)
+        high_sat = compute_opportunity_score(2.0, 0.5, 0.5, 0.9)
         assert low_sat > high_sat
 
 

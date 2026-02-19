@@ -53,6 +53,7 @@ class RecommendationItem(BaseModel):
     opportunity_score: float
     competition_count: int
     competition_density: float
+    demand_proxy: float
     diversity_score: float
     similarity_saturation: float
     explanation: str
@@ -120,6 +121,11 @@ def _generate_explanation(score: AreaScore, query_category: str) -> str:
             f"Found {score.competition_count} similar business(es) "
             f"({score.competition_density:.1f} per km²)."
         )
+
+    if score.demand_proxy > 0.6:
+        parts.append("High activity area — strong foot traffic and demand potential.")
+    elif score.demand_proxy < 0.2:
+        parts.append("Low activity area — limited existing foot traffic.")
 
     if score.diversity_score > 0.6:
         parts.append("The area has a diverse mix of complementary services nearby.")
@@ -195,6 +201,7 @@ def get_recommendations(
             opportunity_score=score.opportunity_score,
             competition_count=score.competition_count,
             competition_density=score.competition_density,
+            demand_proxy=score.demand_proxy,
             diversity_score=score.diversity_score,
             similarity_saturation=score.similarity_saturation,
             explanation=_generate_explanation(score, matched_category),

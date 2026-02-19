@@ -20,8 +20,8 @@ VALID_BBOX_PAYLOAD = {
 }
 
 FAKE_SCORES = [
-    AreaScore(CELL_A, 1, 1.35, 0.6, 0.1, 0.82),
-    AreaScore(CELL_B, 5, 6.76, 0.3, 0.7, 0.31),
+    AreaScore(CELL_A, 1, 1.35, 0.6, 0.6, 0.1, 0.82),
+    AreaScore(CELL_B, 5, 6.76, 0.2, 0.3, 0.7, 0.31),
 ]
 
 

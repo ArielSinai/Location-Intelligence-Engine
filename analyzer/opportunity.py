@@ -6,11 +6,13 @@ for opening a specific type of business.
 
 Scoring factors (all normalized to 0-1):
   - competition_density    : competitors per km²  → LOWER is better
+  - demand_proxy           : total businesses / max as foot-traffic signal
+                             → HIGHER is better (busier area = more customers)
   - diversity_score        : unique service types → HIGHER is better
   - similarity_saturation  : fraction of businesses semantically similar
                              to the query        → LOWER is better
 
-Final opportunity_score = weighted combination of the three signals.
+Final opportunity_score = weighted combination of the four signals.
 """
 
 from __future__ import annotations
@@ -31,6 +33,7 @@ class AreaScore:
     h3_cell: str
     competition_count: int
     competition_density: float       # competitors per km²
+    demand_proxy: float              # 0-1, foot-traffic / activity signal
     diversity_score: float           # 0-1
     similarity_saturation: float     # 0-1
     opportunity_score: float         # 0-1  (higher = better opportunity)
@@ -49,6 +52,27 @@ def compute_competition_density(count: int, cell_area_km2: float) -> float:
     if count == 0 or cell_area_km2 == 0:
         return 0.0
     return float(count) / cell_area_km2
+
+
+def compute_demand_proxy(total_business_count: int, max_businesses: int = 50) -> float:
+    """
+    Estimate demand potential from the overall activity level of an area.
+
+    A cell with many businesses of any type has higher foot traffic, which
+    translates to more potential customers for a new service.
+
+    Score = min(total_businesses, max_businesses) / max_businesses
+      → 0.0 for an empty cell (no foot traffic)
+      → 1.0 when the cell meets or exceeds max_businesses
+
+    Parameters
+    ----------
+    total_business_count : total number of businesses in the cell (all categories)
+    max_businesses       : upper bound used for normalisation (default 50)
+    """
+    if total_business_count <= 0 or max_businesses <= 0:
+        return 0.0
+    return float(min(total_business_count, max_businesses)) / float(max_businesses)
 
 
 def compute_diversity_score(categories: list[str]) -> float:
@@ -102,19 +126,22 @@ def compute_similarity_saturation(
 
 def compute_opportunity_score(
     competition_density: float,
+    demand_proxy: float,
     diversity_score: float,
     similarity_saturation: float,
     *,
     max_density: float = 10.0,
-    w_competition: float = 0.5,
-    w_diversity: float = 0.3,
-    w_saturation: float = 0.2,
+    w_competition: float = 0.40,
+    w_demand: float = 0.20,
+    w_diversity: float = 0.25,
+    w_saturation: float = 0.15,
 ) -> float:
     """
-    Weighted combination of the three signals → final score in [0, 1].
+    Weighted combination of the four signals → final score in [0, 1].
 
-    competition_density  → inverted and normalised against max_density
-    diversity_score      → used directly (already 0-1)
+    competition_density   → inverted and normalised against max_density
+    demand_proxy          → used directly (already 0-1, higher = better)
+    diversity_score       → used directly (already 0-1)
     similarity_saturation → inverted (high saturation = bad)
     """
     # Invert and clamp competition signal
@@ -125,10 +152,11 @@ def compute_opportunity_score(
 
     raw = (
         w_competition * comp_score
+        + w_demand     * demand_proxy
         + w_diversity  * diversity_score
         + w_saturation * sat_score
     )
-    total_weight = w_competition + w_diversity + w_saturation
+    total_weight = w_competition + w_demand + w_diversity + w_saturation
     return float(raw / total_weight)
 
 
@@ -164,6 +192,9 @@ def score_area(
     )
     competition_density = compute_competition_density(competition_count, cell_area_km2)
 
+    # Demand proxy: total business count as foot-traffic signal
+    demand_proxy = compute_demand_proxy(len(area_businesses))
+
     # Diversity: all categories present in the cell
     categories = [b.get("category", "") for b in area_businesses]
     diversity_score = compute_diversity_score(categories)
@@ -178,6 +209,7 @@ def score_area(
 
     opportunity_score = compute_opportunity_score(
         competition_density,
+        demand_proxy,
         diversity_score,
         similarity_saturation,
     )
@@ -186,6 +218,7 @@ def score_area(
         h3_cell=h3_cell,
         competition_count=competition_count,
         competition_density=competition_density,
+        demand_proxy=demand_proxy,
         diversity_score=diversity_score,
         similarity_saturation=similarity_saturation,
         opportunity_score=opportunity_score,
