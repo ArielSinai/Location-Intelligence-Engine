@@ -36,6 +36,20 @@ class BBoxModel(BaseModel):
     north: float
     east: float
 
+    @field_validator("south", "north")
+    @classmethod
+    def valid_latitude(cls, v):
+        if not -90 <= v <= 90:
+            raise ValueError("latitude must be between -90 and 90")
+        return v
+
+    @field_validator("west", "east")
+    @classmethod
+    def valid_longitude(cls, v):
+        if not -180 <= v <= 180:
+            raise ValueError("longitude must be between -180 and 180")
+        return v
+
     @field_validator("north")
     @classmethod
     def north_must_exceed_south(cls, v, info):
