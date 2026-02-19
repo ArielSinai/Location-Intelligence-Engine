@@ -148,12 +148,23 @@ def _resolve_category(
     return matched if matched else query.strip().lower()
 
 
-def _generate_explanation(score: AreaScore, query_category: str) -> str:
+def _generate_explanation(
+    score: AreaScore,
+    query_category: str,
+    avg_competition: float,
+) -> str:
     """Build a human-readable explanation for why an area is recommended."""
     parts: list[str] = []
 
     if score.competition_count == 0:
         parts.append(f"No direct {query_category} competitors found in this area.")
+    elif avg_competition > 0 and score.competition_count < avg_competition:
+        pct_fewer = (avg_competition - score.competition_count) / avg_competition * 100
+        parts.append(
+            f"Found {score.competition_count} similar business(es) "
+            f"({score.competition_density:.1f} per km²) — "
+            f"{pct_fewer:.0f}% fewer than the area average."
+        )
     else:
         parts.append(
             f"Found {score.competition_count} similar business(es) "
@@ -239,18 +250,25 @@ def get_recommendations(
         oid: emb_matrix[i] for i, oid in enumerate(osm_ids)
     }
 
-    # 5. Score and rank cells
+    # 5. Score all cells, then compute area-wide average for explanation context
     def get_businesses(cell: str) -> list[dict]:
         return get_area_businesses(driver, cell)
 
-    ranked = rank_areas(
+    all_scores = rank_areas(
         cells,
         query_emb,
         all_embeddings,
         get_businesses,
         matched_category,
-        top_k=request.top_k,
+        top_k=len(cells),
     )
+
+    avg_competition = (
+        sum(s.competition_count for s in all_scores) / len(all_scores)
+        if all_scores else 0.0
+    )
+
+    ranked = all_scores[: request.top_k]
 
     # 6. Build response items
     items = [
@@ -264,7 +282,7 @@ def get_recommendations(
             diversity_score=score.diversity_score,
             similarity_saturation=score.similarity_saturation,
             support_poi_summary=score.support_poi_summary,
-            explanation=_generate_explanation(score, matched_category),
+            explanation=_generate_explanation(score, matched_category, avg_competition),
         )
         for rank, score in enumerate(ranked, start=1)
     ]
