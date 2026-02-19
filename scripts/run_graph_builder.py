@@ -22,7 +22,7 @@ from tqdm import tqdm
 from neo4j import GraphDatabase
 
 from config import settings
-from data_collector.normalizer import load_normalized
+from data_collector.normalizer import load_normalized, SUPPORT_CATEGORIES
 from graph.builder import GraphBuilder
 
 
@@ -71,6 +71,8 @@ def main(argv=None):
         builder.link_area_neighbors(poi.h3_cell)
         builder.link_business_to_category(poi.osm_id, poi.category)
         builder.link_business_to_area(poi.osm_id, poi.h3_cell)
+        if poi.category in SUPPORT_CATEGORIES:
+            builder.link_area_to_support_poi(poi.h3_cell, poi.osm_id)
 
     driver.close()
     print(f"\nDone. Graph built with {len(pois)} businesses.")
