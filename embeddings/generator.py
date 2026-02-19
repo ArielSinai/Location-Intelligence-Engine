@@ -163,3 +163,35 @@ def find_similar(
     top_indices = np.argsort(scores)[::-1][:k]
 
     return [(int(idx), float(scores[idx])) for idx in top_indices]
+
+
+def match_category_by_embedding(
+    query_emb: np.ndarray,
+    category_names: list[str],
+    generator: "EmbeddingGenerator",
+    threshold: float = 0.3,
+) -> str:
+    """
+    Return the category name most semantically similar to *query_emb*.
+
+    Embeds each unique category label and picks the one with the highest
+    cosine similarity to the query.  Falls back to an empty string when
+    *category_names* is empty or no candidate meets *threshold*.
+
+    Parameters
+    ----------
+    query_emb      : embedding of the user's query (1-D float32 array)
+    category_names : list of known category strings to search over
+    generator      : EmbeddingGenerator used to encode the category labels
+    threshold      : minimum cosine similarity to accept a match (0-1)
+    """
+    if not category_names:
+        return ""
+
+    cat_matrix = generator.encode(category_names)          # (N, D)
+    hits = find_similar(query_emb, cat_matrix, top_k=1)
+
+    if hits and hits[0][1] >= threshold:
+        return category_names[hits[0][0]]
+
+    return ""

@@ -14,7 +14,7 @@ import h3
 import numpy as np
 
 from analyzer.opportunity import rank_areas, AreaScore
-from embeddings.generator import load_embeddings, EmbeddingGenerator
+from embeddings.generator import load_embeddings, EmbeddingGenerator, match_category_by_embedding
 from graph.queries import get_area_businesses
 from api.dependencies import get_embedding_generator, get_driver
 from config import settings
@@ -79,12 +79,34 @@ def _cells_in_bbox(south: float, west: float, north: float, east: float) -> list
     return list(h3.h3shape_to_cells(poly, settings.h3_resolution))
 
 
-def _matched_category(query: str) -> str:
+def _resolve_category(
+    query: str,
+    query_emb: np.ndarray,
+    cells: list[str],
+    driver,
+    generator: EmbeddingGenerator,
+) -> str:
     """
-    Return a normalised category label for the user's query.
-    Uses simple string normalisation for the MVP.
+    Use embedding similarity to pick the closest stored category to the query.
+
+    Collects all unique category labels from businesses that exist in the
+    requested bbox cells, encodes them, and returns the one most similar
+    to the query embedding.  Falls back to the lowercased query string
+    when no categories are found in the graph.
     """
-    return query.strip().lower()
+    seen: set[str] = set()
+    for cell in cells:
+        for biz in get_area_businesses(driver, cell):
+            cat = biz.get("category", "")
+            if cat:
+                seen.add(cat)
+
+    category_names = list(seen)
+    if not category_names:
+        return query.strip().lower()
+
+    matched = match_category_by_embedding(query_emb, category_names, generator)
+    return matched if matched else query.strip().lower()
 
 
 def _generate_explanation(score: AreaScore, query_category: str) -> str:
@@ -140,11 +162,11 @@ def get_recommendations(
     # 1. Embed the user's query
     query_emb = generator.embed_query(request.query)
 
-    # 2. Determine matched category
-    matched_category = _matched_category(request.query)
-
-    # 3. Find all H3 cells inside the requested area
+    # 2. Find all H3 cells inside the requested area
     cells = _cells_in_bbox(bbox.south, bbox.west, bbox.north, bbox.east)
+
+    # 3. Resolve matched category via embedding similarity against stored categories
+    matched_category = _resolve_category(request.query, query_emb, cells, driver, generator)
 
     # 4. Load pre-computed business embeddings
     osm_ids, emb_matrix = _load_embeddings_safe()

@@ -44,6 +44,18 @@ def client(mocker):
     # Patch GraphDriver so no Neo4j connection is attempted
     mocker.patch("api.dependencies.GraphDatabase")
 
+    # Patch get_area_businesses so no real Neo4j calls happen in _resolve_category
+    mocker.patch(
+        "api.routers.recommendations.get_area_businesses",
+        return_value=[
+            {"osm_id": "1", "category": "pilates studio"},
+            {"osm_id": "2", "category": "fitness center"},
+        ],
+    )
+
+    # Make the mock generator encode() return unit vectors (used by match_category_by_embedding)
+    mock_gen.encode.return_value = np.stack([fake_emb, fake_emb])
+
     # Patch rank_areas so no real scoring happens
     mocker.patch("api.routers.recommendations.rank_areas", return_value=FAKE_SCORES)
 
