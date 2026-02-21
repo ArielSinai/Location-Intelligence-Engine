@@ -173,6 +173,7 @@ def score_area(
     area_embeddings: dict[str, np.ndarray],   # osm_id → embedding
     area_businesses: list[dict],
     query_category: str,
+    query_keywords: frozenset[str] = frozenset(),
 ) -> AreaScore:
     """
     Compute a full AreaScore for a single H3 cell.
@@ -184,11 +185,46 @@ def score_area(
     area_embeddings  : all embeddings keyed by osm_id
     area_businesses  : list of business dicts (must contain 'osm_id', 'category')
     query_category   : normalised category the user is looking for
+    query_keywords   : core keywords from the stripped query (e.g. {"pilates"}).
+                       A business whose name contains any of these is always
+                       counted as a competitor, regardless of embedding score.
     """
-    # Competition: count businesses in the same category
-    competition_count = sum(
-        1 for b in area_businesses if b.get("category") == query_category
-    )
+    _COMPETITION_THRESHOLD = 0.45  # embedding cosine similarity floor for competitors
+    _SATURATION_THRESHOLD  = 0.80  # floor for market-saturation signal
+
+    # Normalise the query embedding once; reuse for both signals.
+    q = query_embedding.astype(np.float32)
+    q_norm = np.linalg.norm(q)
+    if q_norm > 0:
+        q = q / q_norm
+
+    competition_count = 0
+    saturation_above  = 0
+    scored_count      = 0
+
+    for b in area_businesses:
+        name   = (b.get("name") or "").lower()
+        osm_id = b.get("osm_id")
+
+        # Keyword match: business name contains a core query word → definite competitor.
+        keyword_hit = any(kw in name for kw in query_keywords)
+
+        if osm_id in area_embeddings:
+            e = area_embeddings[osm_id].astype(np.float32)
+            e_norm = np.linalg.norm(e)
+            if e_norm > 0:
+                e = e / e_norm
+            sim = float(np.dot(q, e))
+            scored_count += 1
+            if keyword_hit or sim >= _COMPETITION_THRESHOLD:
+                competition_count += 1
+            if sim >= _SATURATION_THRESHOLD:
+                saturation_above += 1
+        elif keyword_hit or b.get("category") == query_category:
+            # Fallback for businesses without embeddings.
+            competition_count += 1
+
+    similarity_saturation = saturation_above / scored_count if scored_count > 0 else 0.0
 
     cell_area_km2 = h3.average_hexagon_area(
         h3.get_resolution(h3_cell), unit="km^2"
@@ -202,14 +238,6 @@ def score_area(
     categories = [b.get("category", "") for b in area_businesses]
     diversity_score = compute_diversity_score(categories)
 
-    # Similarity saturation: embeddings of all businesses in the cell
-    emb_list = [
-        area_embeddings[b["osm_id"]]
-        for b in area_businesses
-        if b.get("osm_id") in area_embeddings
-    ]
-    similarity_saturation = compute_similarity_saturation(query_embedding, emb_list)
-
     opportunity_score = compute_opportunity_score(
         competition_density,
         demand_proxy,
@@ -217,7 +245,7 @@ def score_area(
         similarity_saturation,
     )
 
-    # Support POI summary: count demand anchors present in the cell
+    # Support POI summary: demand anchors present in the cell
     support_poi_summary: dict[str, int] = {}
     for b in area_businesses:
         cat = b.get("category", "")
@@ -247,6 +275,7 @@ def rank_areas(
     get_businesses_fn: Callable[[str], list[dict]],
     query_category: str,
     top_k: int = 5,
+    query_keywords: frozenset[str] = frozenset(),
 ) -> list[AreaScore]:
     """
     Score every cell in *cells* and return the top-k by opportunity_score.
@@ -260,6 +289,8 @@ def rank_areas(
                         (wraps either graph queries or cached data)
     query_category    : normalised category string
     top_k             : how many results to return
+    query_keywords    : core keywords from the stripped query used to guarantee
+                        name-matched businesses are always counted as competitors
     """
     if not cells:
         return []
@@ -271,6 +302,7 @@ def rank_areas(
             all_embeddings,
             get_businesses_fn(cell),
             query_category,
+            query_keywords,
         )
         for cell in cells
     ]

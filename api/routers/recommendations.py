@@ -278,6 +278,8 @@ def get_recommendations(
     }
 
     # 5. Score all cells, then compute area-wide average for explanation context
+    query_keywords = frozenset(_strip_venue_words(request.query).lower().split())
+
     def get_businesses(cell: str) -> list[dict]:
         return get_area_businesses(driver, cell)
 
@@ -288,6 +290,7 @@ def get_recommendations(
         get_businesses,
         matched_category,
         top_k=len(cells),
+        query_keywords=query_keywords,
     )
 
     avg_competition = (
@@ -345,6 +348,8 @@ def get_heatmap(
     }
 
     # 5. Score every cell (no top-k cutoff)
+    query_keywords = frozenset(_strip_venue_words(request.query).lower().split())
+
     def get_businesses(cell: str) -> list[dict]:
         return get_area_businesses(driver, cell)
 
@@ -355,6 +360,7 @@ def get_heatmap(
         get_businesses,
         matched_category,
         top_k=len(cells),
+        query_keywords=query_keywords,
     )
 
     # 6. Attach lat/lng centre of each H3 cell for map rendering
