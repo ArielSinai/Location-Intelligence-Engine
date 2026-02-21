@@ -170,6 +170,8 @@ def match_category_by_embedding(
     category_names: list[str],
     generator: "EmbeddingGenerator",
     threshold: float = 0.3,
+    *,
+    encoding_texts: list[str] | None = None,
 ) -> str:
     """
     Return the category name most semantically similar to *query_emb*.
@@ -184,11 +186,15 @@ def match_category_by_embedding(
     category_names : list of known category strings to search over
     generator      : EmbeddingGenerator used to encode the category labels
     threshold      : minimum cosine similarity to accept a match (0-1)
+    encoding_texts : if provided, encode these texts instead of category_names
+                     for the similarity comparison (used to pass pre-processed
+                     versions); the returned name is always from category_names
     """
     if not category_names:
         return ""
 
-    cat_matrix = generator.encode(category_names)          # (N, D)
+    texts = encoding_texts if encoding_texts is not None else category_names
+    cat_matrix = generator.encode(texts)                   # (N, D)
     hits = find_similar(query_emb, cat_matrix, top_k=1)
 
     if hits and hits[0][1] >= threshold:

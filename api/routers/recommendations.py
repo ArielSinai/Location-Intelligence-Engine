@@ -9,6 +9,7 @@ POST /recommendations
 from __future__ import annotations
 
 import logging
+import re
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field, field_validator
@@ -24,6 +25,21 @@ from config import settings
 logger = logging.getLogger(__name__)
 
 router = APIRouter()
+
+# Generic venue-type words that describe *where* a business operates but carry
+# little signal about *what* it does.  Stripping them before category matching
+# reduces the bias they introduce (e.g. "pilates studio" vs "dance studio"
+# both share "studio", making the match drift toward dance over fitness).
+_VENUE_WORDS = re.compile(
+    r"\b(studio|center|centre|school|shop|store|salon|hall|club|bar|court|space|room|place|house)\b",
+    re.IGNORECASE,
+)
+
+
+def _strip_venue_words(text: str) -> str:
+    """Remove generic venue-type suffixes; fall back to original if fully stripped."""
+    result = _VENUE_WORDS.sub("", text).strip()
+    return result if result else text
 
 
 # ---------------------------------------------------------------------------
@@ -144,7 +160,18 @@ def _resolve_category(
     if not category_names:
         return query.strip().lower()
 
-    matched = match_category_by_embedding(query_emb, category_names, generator)
+    # Strip venue-type words before comparing so the meaningful business-type
+    # word drives the match (e.g. "pilates" rather than "studio").
+    stripped_query = _strip_venue_words(query)
+    stripped_query_emb = generator.embed_query(stripped_query)
+    stripped_categories = [_strip_venue_words(c) for c in category_names]
+
+    matched = match_category_by_embedding(
+        stripped_query_emb,
+        category_names,
+        generator,
+        encoding_texts=stripped_categories,
+    )
     return matched if matched else query.strip().lower()
 
 
