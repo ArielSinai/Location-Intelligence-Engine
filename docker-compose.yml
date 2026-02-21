@@ -18,16 +18,16 @@ services:
       - "7474:7474"   # Browser UI  → http://localhost:7474
       - "7687:7687"   # Bolt protocol
     environment:
-      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}   # must match NEO4J_PASSWORD in .env
-      NEO4J_PASSWORD: ${NEO4J_PASSWORD:-password}     # exposed inside container for healthcheck
+      NEO4J_AUTH: neo4j/${NEO4J_PASSWORD:-password}
       NEO4J_PLUGINS: '["apoc"]'
     volumes:
       - neo4j_data:/data
     healthcheck:
-      test: ["CMD-SHELL", "cypher-shell -u neo4j -p $NEO4J_PASSWORD RETURN 1"]
+      test: ["CMD-SHELL", "echo 'RETURN 1;' | cypher-shell -u neo4j -p ${NEO4J_PASSWORD:-password}"]
       interval: 10s
-      timeout: 5s
-      retries: 5
+      timeout: 10s
+      retries: 10
+      start_period: 30s
 
   api:
     build: .
