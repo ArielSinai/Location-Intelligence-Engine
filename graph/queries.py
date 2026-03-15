@@ -10,27 +10,6 @@ from __future__ import annotations
 from neo4j import Driver
 
 
-def get_competition_count(driver: Driver, h3_cell: str, category: str) -> int:
-    """
-    Count how many businesses of *category* are LOCATED_IN *h3_cell*.
-
-    Returns 0 if the cell or category does not exist in the graph.
-    """
-    with driver.session() as session:
-        result = session.run(
-            """
-            MATCH (b:Business)-[:LOCATED_IN]->(a:Area {h3_index: $h3_index})
-            WHERE b.category = $category
-            RETURN count(b) AS count
-            """,
-            h3_index=h3_cell,
-            category=category,
-        )
-        record = result.single()
-        if record is None:
-            return 0
-        return int(record["count"])
-
 
 def get_area_businesses(driver: Driver, h3_cell: str) -> list[dict]:
     """

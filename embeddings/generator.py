@@ -172,13 +172,14 @@ def match_category_by_embedding(
     threshold: float = 0.3,
     *,
     encoding_texts: list[str] | None = None,
-) -> str:
+) -> tuple[str, float]:
     """
-    Return the category name most semantically similar to *query_emb*.
+    Return the category name most semantically similar to *query_emb*
+    together with its cosine similarity score.
 
     Embeds each unique category label and picks the one with the highest
-    cosine similarity to the query.  Falls back to an empty string when
-    *category_names* is empty or no candidate meets *threshold*.
+    cosine similarity to the query.  Returns ("", 0.0) when *category_names*
+    is empty or no candidate meets *threshold*.
 
     Parameters
     ----------
@@ -187,17 +188,23 @@ def match_category_by_embedding(
     generator      : EmbeddingGenerator used to encode the category labels
     threshold      : minimum cosine similarity to accept a match (0-1)
     encoding_texts : if provided, encode these texts instead of category_names
-                     for the similarity comparison (used to pass pre-processed
-                     versions); the returned name is always from category_names
+                     for the similarity comparison; the returned name is always
+                     from category_names
+
+    Returns
+    -------
+    (matched_category, similarity_score)
+        matched_category — best matching name, or "" if no match meets threshold
+        similarity_score — cosine similarity of the match (0.0 when no match)
     """
     if not category_names:
-        return ""
+        return "", 0.0
 
     texts = encoding_texts if encoding_texts is not None else category_names
     cat_matrix = generator.encode(texts)                   # (N, D)
     hits = find_similar(query_emb, cat_matrix, top_k=1)
 
     if hits and hits[0][1] >= threshold:
-        return category_names[hits[0][0]]
+        return category_names[hits[0][0]], float(hits[0][1])
 
-    return ""
+    return "", 0.0

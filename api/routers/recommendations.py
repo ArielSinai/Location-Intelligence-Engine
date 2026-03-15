@@ -136,18 +136,27 @@ def _cells_in_bbox(south: float, west: float, north: float, east: float) -> list
 
 def _resolve_category(
     query: str,
-    query_emb: np.ndarray,
     cells: list[str],
     driver,
     generator: EmbeddingGenerator,
-) -> str:
+) -> tuple[str, float]:
     """
-    Use embedding similarity to pick the closest stored category to the query.
+    Resolve the user query to the best matching stored category and a
+    confidence score (0–1) indicating how specific the match is.
 
-    Collects all unique category labels from businesses that exist in the
-    requested bbox cells, encodes them, and returns the one most similar
-    to the query embedding.  Falls back to the lowercased query string
-    when no categories are found in the graph.
+    Strategy
+    --------
+    1. Collect every unique category present in the requested bbox cells.
+    2. If the lowercased query exactly matches a stored category name →
+       return it immediately with confidence 1.0 (well-defined query).
+    3. Otherwise strip generic venue-type words and use embedding similarity
+       to find the closest category; the cosine score becomes the confidence.
+    4. Fall back to the lowercased query string with confidence 0.0 when no
+       categories exist in the graph yet.
+
+    Returns
+    -------
+    (matched_category, confidence)
     """
     seen: set[str] = set()
     for cell in cells:
@@ -157,22 +166,30 @@ def _resolve_category(
                 seen.add(cat)
 
     category_names = list(seen)
-    if not category_names:
-        return query.strip().lower()
+    query_lower = query.strip().lower()
 
+    if not category_names:
+        return query_lower, 0.0
+
+    # --- Step 1: exact text match (highest confidence) ---
+    for cat in category_names:
+        if cat.lower() == query_lower:
+            return cat, 1.0
+
+    # --- Step 2: embedding similarity match ---
     # Strip venue-type words before comparing so the meaningful business-type
     # word drives the match (e.g. "pilates" rather than "studio").
     stripped_query = _strip_venue_words(query)
     stripped_query_emb = generator.embed_query(stripped_query)
     stripped_categories = [_strip_venue_words(c) for c in category_names]
 
-    matched = match_category_by_embedding(
+    matched, confidence = match_category_by_embedding(
         stripped_query_emb,
         category_names,
         generator,
         encoding_texts=stripped_categories,
     )
-    return matched if matched else query.strip().lower()
+    return (matched if matched else query_lower), confidence
 
 
 def _generate_explanation(
@@ -268,8 +285,8 @@ def get_recommendations(
     # 2. Find all H3 cells inside the requested area
     cells = _cells_in_bbox(bbox.south, bbox.west, bbox.north, bbox.east)
 
-    # 3. Resolve matched category via embedding similarity against stored categories
-    matched_category = _resolve_category(request.query, query_emb, cells, driver, generator)
+    # 3. Resolve matched category and how confidently it was matched
+    matched_category, category_confidence = _resolve_category(request.query, cells, driver, generator)
 
     # 4. Load pre-computed business embeddings
     osm_ids, emb_matrix = _load_embeddings_safe()
@@ -291,6 +308,7 @@ def get_recommendations(
         matched_category,
         top_k=len(cells),
         query_keywords=query_keywords,
+        category_confidence=category_confidence,
     )
 
     avg_competition = (
@@ -338,8 +356,8 @@ def get_heatmap(
     # 2. Find all H3 cells inside the requested area
     cells = _cells_in_bbox(bbox.south, bbox.west, bbox.north, bbox.east)
 
-    # 3. Resolve matched category
-    matched_category = _resolve_category(request.query, query_emb, cells, driver, generator)
+    # 3. Resolve matched category and how confidently it was matched
+    matched_category, category_confidence = _resolve_category(request.query, cells, driver, generator)
 
     # 4. Load pre-computed business embeddings
     osm_ids, emb_matrix = _load_embeddings_safe()
@@ -361,6 +379,7 @@ def get_heatmap(
         matched_category,
         top_k=len(cells),
         query_keywords=query_keywords,
+        category_confidence=category_confidence,
     )
 
     # 6. Attach lat/lng centre of each H3 cell for map rendering

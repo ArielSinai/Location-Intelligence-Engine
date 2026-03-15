@@ -38,7 +38,6 @@ RELEVANT_TAG_KEYS = [
     "tourism",
     "office",
     "healthcare",
-    "sport",
 ]
 
 

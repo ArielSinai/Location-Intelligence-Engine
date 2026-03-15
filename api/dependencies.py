@@ -11,8 +11,9 @@ from neo4j import GraphDatabase
 from config import settings
 from embeddings.generator import EmbeddingGenerator
 
-# Loaded once on first use and reused for every subsequent request.
+# Both singletons are loaded once on first use and reused for every request.
 _generator: EmbeddingGenerator | None = None
+_driver = None
 
 
 def get_embedding_generator() -> EmbeddingGenerator:
@@ -24,12 +25,16 @@ def get_embedding_generator() -> EmbeddingGenerator:
 
 
 def get_driver():
-    """Provide a connected Neo4j driver, closed automatically after each request."""
-    driver = GraphDatabase.driver(
-        settings.neo4j_uri,
-        auth=(settings.neo4j_username, settings.neo4j_password),
-    )
-    try:
-        yield driver
-    finally:
-        driver.close()
+    """
+    Provide the shared Neo4j driver.
+
+    GraphDatabase.driver() manages an internal connection pool, so it must be
+    created once and reused — not instantiated per request.
+    """
+    global _driver
+    if _driver is None:
+        _driver = GraphDatabase.driver(
+            settings.neo4j_uri,
+            auth=(settings.neo4j_username, settings.neo4j_password),
+        )
+    return _driver

@@ -174,23 +174,34 @@ def score_area(
     area_businesses: list[dict],
     query_category: str,
     query_keywords: frozenset[str] = frozenset(),
+    category_confidence: float = 0.0,
 ) -> AreaScore:
     """
     Compute a full AreaScore for a single H3 cell.
 
     Parameters
     ----------
-    h3_cell          : H3 index of the cell being scored
-    query_embedding  : embedding of the user's query text
-    area_embeddings  : all embeddings keyed by osm_id
-    area_businesses  : list of business dicts (must contain 'osm_id', 'category')
-    query_category   : normalised category the user is looking for
-    query_keywords   : core keywords from the stripped query (e.g. {"pilates"}).
-                       A business whose name contains any of these is always
-                       counted as a competitor, regardless of embedding score.
+    h3_cell             : H3 index of the cell being scored
+    query_embedding     : embedding of the user's query text
+    area_embeddings     : all embeddings keyed by osm_id
+    area_businesses     : list of business dicts (must contain 'osm_id', 'category')
+    query_category      : normalised category the user is looking for
+    query_keywords      : core keywords from the stripped query (e.g. {"pilates"}).
+                          A business whose name contains any of these is always
+                          counted as a competitor, regardless of embedding score.
+    category_confidence : how confidently the query mapped to query_category (0–1).
+                          High confidence (≥ 0.70) → "exact mode": exact category
+                          match is the primary competition signal and the embedding
+                          threshold is raised to 0.75 to catch only near-identical
+                          businesses that may have a different OSM tag.
+                          Low confidence → "fuzzy mode": embedding similarity ≥ 0.45
+                          is the primary signal (previous behaviour).
     """
-    _COMPETITION_THRESHOLD = 0.45  # embedding cosine similarity floor for competitors
-    _SATURATION_THRESHOLD  = 0.80  # floor for market-saturation signal
+    _SATURATION_THRESHOLD = 0.80  # floor for market-saturation signal
+    _HIGH_CONFIDENCE      = 0.70  # above this: switch to exact-match competition mode
+
+    is_exact_mode         = category_confidence >= _HIGH_CONFIDENCE
+    _COMPETITION_THRESHOLD = 0.75 if is_exact_mode else 0.45
 
     # Normalise the query embedding once; reuse for both signals.
     q = query_embedding.astype(np.float32)
@@ -203,8 +214,9 @@ def score_area(
     scored_count      = 0
 
     for b in area_businesses:
-        name   = (b.get("name") or "").lower()
-        osm_id = b.get("osm_id")
+        name      = (b.get("name") or "").lower()
+        osm_id    = b.get("osm_id")
+        exact_cat = b.get("category") == query_category
 
         # Keyword match: business name contains a core query word → definite competitor.
         keyword_hit = any(kw in name for kw in query_keywords)
@@ -216,13 +228,24 @@ def score_area(
                 e = e / e_norm
             sim = float(np.dot(q, e))
             scored_count += 1
-            if keyword_hit or sim >= _COMPETITION_THRESHOLD:
-                competition_count += 1
+
+            if is_exact_mode:
+                # Well-defined category: exact OSM category match is the primary
+                # signal.  High-sim embedding catches businesses tagged differently
+                # but operating in the same space (e.g. "juice bar" vs "cafe").
+                if keyword_hit or exact_cat or sim >= _COMPETITION_THRESHOLD:
+                    competition_count += 1
+            else:
+                # Fuzzy mode: rely on embedding similarity (original behaviour).
+                if keyword_hit or sim >= _COMPETITION_THRESHOLD:
+                    competition_count += 1
+
             if sim >= _SATURATION_THRESHOLD:
                 saturation_above += 1
-        elif keyword_hit or b.get("category") == query_category:
-            # Fallback for businesses without embeddings.
-            competition_count += 1
+        else:
+            # Fallback for businesses without embeddings (both modes).
+            if keyword_hit or exact_cat:
+                competition_count += 1
 
     similarity_saturation = saturation_above / scored_count if scored_count > 0 else 0.0
 
@@ -276,21 +299,23 @@ def rank_areas(
     query_category: str,
     top_k: int = 5,
     query_keywords: frozenset[str] = frozenset(),
+    category_confidence: float = 0.0,
 ) -> list[AreaScore]:
     """
     Score every cell in *cells* and return the top-k by opportunity_score.
 
     Parameters
     ----------
-    cells             : H3 cell indices to evaluate
-    query_embedding   : embedding of the user's query
-    all_embeddings    : full embedding store (osm_id → array)
-    get_businesses_fn : callable(h3_cell) → list[dict]
-                        (wraps either graph queries or cached data)
-    query_category    : normalised category string
-    top_k             : how many results to return
-    query_keywords    : core keywords from the stripped query used to guarantee
-                        name-matched businesses are always counted as competitors
+    cells               : H3 cell indices to evaluate
+    query_embedding     : embedding of the user's query
+    all_embeddings      : full embedding store (osm_id → array)
+    get_businesses_fn   : callable(h3_cell) → list[dict]
+                          (wraps either graph queries or cached data)
+    query_category      : normalised category string
+    top_k               : how many results to return
+    query_keywords      : core keywords from the stripped query used to guarantee
+                          name-matched businesses are always counted as competitors
+    category_confidence : forwarded to score_area — see its docstring for details
     """
     if not cells:
         return []
@@ -303,6 +328,7 @@ def rank_areas(
             get_businesses_fn(cell),
             query_category,
             query_keywords,
+            category_confidence,
         )
         for cell in cells
     ]
