@@ -21,6 +21,9 @@ pydantic-settings==2.7.0
 python-dotenv==1.0.1
 tqdm==4.67.1
 
+# Azure
+azure-storage-blob==12.24.1
+
 # Testing
 pytest==8.3.4
 pytest-mock==3.14.0

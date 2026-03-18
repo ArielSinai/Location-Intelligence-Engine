@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     # Embeddings
     embedding_model: str = "all-MiniLM-L6-v2"
 
+    # Azure Blob Storage (only needed when deploying)
+    azure_storage_connection_string: str = ""
+    azure_blob_container: str = "embeddings"
+    azure_blob_name: str = "embeddings.npz"
+
     # H3 grid resolution
     # 8 → avg cell area ~0.74 km²  (good for neighborhoods)
     # 7 → avg cell area ~5.16 km²  (good for districts)
