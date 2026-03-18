@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Embeddings
     embedding_model: str = "all-MiniLM-L6-v2"
 
+    # Neo4j database name (AuraDB uses the instance ID, e.g. "ef1ba9d9")
+    neo4j_database: str = ""
+
     # Azure Blob Storage (only needed when deploying)
     azure_storage_connection_string: str = ""
     azure_blob_container: str = "embeddings"

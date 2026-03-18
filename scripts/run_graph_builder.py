@@ -55,7 +55,8 @@ def main(argv=None):
 
     if args.clear:
         print("      Clearing existing graph …")
-        with driver.session() as session:
+        db = settings.neo4j_database or None
+        with driver.session(database=db) as session:
             session.run("MATCH (n) DETACH DELETE n")
         print("      Done.")
 

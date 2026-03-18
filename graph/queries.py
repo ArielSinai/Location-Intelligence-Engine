@@ -9,13 +9,17 @@ from __future__ import annotations
 
 from neo4j import Driver
 
+from config import settings
+
+_DB = settings.neo4j_database or None
+
 
 
 def get_area_businesses(driver: Driver, h3_cell: str) -> list[dict]:
     """
     Return all businesses located in *h3_cell* as plain dicts.
     """
-    with driver.session() as session:
+    with driver.session(database=_DB) as session:
         result = session.run(
             """
             MATCH (b:Business)-[:LOCATED_IN]->(a:Area {h3_index: $h3_index})
@@ -36,7 +40,7 @@ def get_support_pois(driver: Driver, h3_cell: str) -> list[dict]:
 
     Each dict contains 'osm_id', 'name', and 'category'.
     """
-    with driver.session() as session:
+    with driver.session(database=_DB) as session:
         result = session.run(
             """
             MATCH (a:Area {h3_index: $h3_index})-[:CLOSE_TO]->(b:Business)
@@ -51,7 +55,7 @@ def get_neighbor_cells(driver: Driver, h3_cell: str) -> list[str]:
     """
     Return the H3 indices of all Area nodes directly NEAR *h3_cell*.
     """
-    with driver.session() as session:
+    with driver.session(database=_DB) as session:
         result = session.run(
             """
             MATCH (a:Area {h3_index: $h3_index})-[:NEAR]->(n:Area)

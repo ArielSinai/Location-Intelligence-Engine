@@ -15,7 +15,10 @@ from __future__ import annotations
 import h3
 from neo4j import Driver
 
+from config import settings
 from data_collector.normalizer import BusinessPOI, SUPPORT_CATEGORIES
+
+_DB = settings.neo4j_database or None
 
 
 class GraphBuilder:
@@ -38,7 +41,7 @@ class GraphBuilder:
             "CREATE CONSTRAINT area_h3_index IF NOT EXISTS "
             "FOR (a:Area) REQUIRE a.h3_index IS UNIQUE",
         ]
-        with self._driver.session() as session:
+        with self._driver.session(database=_DB) as session:
             for stmt in statements:
                 session.run(stmt)
 
@@ -48,7 +51,7 @@ class GraphBuilder:
 
     def upsert_business(self, poi: BusinessPOI) -> None:
         """MERGE a Business node and set its properties."""
-        with self._driver.session() as session:
+        with self._driver.session(database=_DB) as session:
             session.run(
                 """
                 MERGE (b:Business {osm_id: $osm_id})
@@ -68,7 +71,7 @@ class GraphBuilder:
 
     def upsert_category(self, name: str, group: str) -> None:
         """MERGE a Category node."""
-        with self._driver.session() as session:
+        with self._driver.session(database=_DB) as session:
             session.run(
                 """
                 MERGE (c:Category {name: $name})
@@ -80,7 +83,7 @@ class GraphBuilder:
 
     def upsert_area(self, h3_cell: str) -> None:
         """MERGE an Area node for a single H3 cell."""
-        with self._driver.session() as session:
+        with self._driver.session(database=_DB) as session:
             session.run(
                 """
                 MERGE (a:Area {h3_index: $h3_index})
@@ -94,7 +97,7 @@ class GraphBuilder:
 
     def link_business_to_category(self, osm_id: str, category: str) -> None:
         """MERGE (Business)-[:BELONGS_TO]->(Category)."""
-        with self._driver.session() as session:
+        with self._driver.session(database=_DB) as session:
             session.run(
                 """
                 MATCH (b:Business {osm_id: $osm_id})
@@ -107,7 +110,7 @@ class GraphBuilder:
 
     def link_business_to_area(self, osm_id: str, h3_cell: str) -> None:
         """MERGE (Business)-[:LOCATED_IN]->(Area)."""
-        with self._driver.session() as session:
+        with self._driver.session(database=_DB) as session:
             session.run(
                 """
                 MATCH (b:Business {osm_id: $osm_id})
@@ -125,7 +128,7 @@ class GraphBuilder:
         All 6 neighbours are handled in a single query via UNWIND.
         """
         neighbours = list(set(h3.grid_disk(h3_cell, 1)) - {h3_cell})
-        with self._driver.session() as session:
+        with self._driver.session(database=_DB) as session:
             session.run(
                 """
                 MERGE (a:Area {h3_index: $h3_index})
@@ -145,7 +148,7 @@ class GraphBuilder:
         This edge captures demand anchors — universities, offices, transport
         hubs, and malls — that generate foot traffic near the area.
         """
-        with self._driver.session() as session:
+        with self._driver.session(database=_DB) as session:
             session.run(
                 """
                 MATCH (a:Area {h3_index: $h3_index})
