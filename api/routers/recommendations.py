@@ -47,10 +47,11 @@ def _strip_venue_words(text: str) -> str:
 # ---------------------------------------------------------------------------
 
 class BBoxModel(BaseModel):
-    south: float
-    west: float
-    north: float
-    east: float
+    """Geographic bounding box defined by its four edges (decimal degrees)."""
+    south: float = Field(..., description="Southern latitude boundary (e.g. 32.03)")
+    west: float  = Field(..., description="Western longitude boundary (e.g. 34.74)")
+    north: float = Field(..., description="Northern latitude boundary (e.g. 32.13)")
+    east: float  = Field(..., description="Eastern longitude boundary (e.g. 34.84)")
 
     @field_validator("south", "north")
     @classmethod
@@ -76,47 +77,66 @@ class BBoxModel(BaseModel):
 
 
 class RecommendationRequest(BaseModel):
-    bbox: BBoxModel
-    query: str = Field(..., min_length=1)
-    top_k: int = Field(default=5, ge=1)
+    """Request body for the /recommendations endpoint."""
+    bbox: BBoxModel = Field(..., description="The geographic area to analyse.")
+    query: str = Field(
+        ...,
+        min_length=1,
+        description=(
+            "The type of business you want to open. "
+            "Can be a specific type (e.g. 'sushi restaurant', 'pilates studio') "
+            "or a general category (e.g. 'cafe', 'pharmacy'). "
+            "The engine matches this to the closest known category using AI embeddings."
+        ),
+    )
+    top_k: int = Field(
+        default=5,
+        ge=1,
+        description="Number of top-ranked locations to return. Defaults to 5.",
+    )
 
 
 class RecommendationItem(BaseModel):
-    h3_cell: str
-    rank: int
-    opportunity_score: float
-    competition_count: int
-    competition_density: float
-    demand_proxy: float
-    diversity_score: float
-    similarity_saturation: float
-    support_poi_summary: dict[str, int]
-    explanation: str
+    h3_cell: str = Field(..., description="H3 hexagonal cell index identifying the recommended location.")
+    rank: int = Field(..., description="Rank of this location (1 = best opportunity).")
+    opportunity_score: float = Field(..., description="Overall opportunity score from 0 to 1. Higher is better.")
+    competition_count: int = Field(..., description="Number of similar businesses already operating in this cell.")
+    competition_density: float = Field(..., description="Competitors per km² in this cell.")
+    demand_proxy: float = Field(..., description="Estimated foot traffic / activity level (0–1). Higher means more potential customers.")
+    diversity_score: float = Field(..., description="How varied the mix of businesses in the area is (0–1). Higher means more complementary services nearby.")
+    similarity_saturation: float = Field(..., description="Fraction of businesses semantically similar to your query (0–1). Lower is better — less market saturation.")
+    support_poi_summary: dict[str, int] = Field(..., description="Nearby demand anchors (e.g. schools, offices, malls) and their counts.")
+    explanation: str = Field(..., description="Human-readable summary of why this location was recommended.")
 
 
 class RecommendationResponse(BaseModel):
-    query: str
-    matched_category: str
-    recommendations: list[RecommendationItem]
+    query: str = Field(..., description="The original query as submitted.")
+    matched_category: str = Field(..., description="The business category the query was matched to in the dataset.")
+    recommendations: list[RecommendationItem] = Field(..., description="Ranked list of recommended locations.")
 
 
 class HeatmapRequest(BaseModel):
-    bbox: BBoxModel
-    query: str = Field(..., min_length=1)
+    """Request body for the /heatmap endpoint."""
+    bbox: BBoxModel = Field(..., description="The geographic area to analyse.")
+    query: str = Field(
+        ...,
+        min_length=1,
+        description="The type of business you want to open (e.g. 'cafe', 'gym', 'pharmacy').",
+    )
 
 
 class HeatmapCell(BaseModel):
-    h3_cell: str
-    lat: float
-    lng: float
-    opportunity_score: float
-    competition_density: float
+    h3_cell: str = Field(..., description="H3 hexagonal cell index.")
+    lat: float = Field(..., description="Latitude of the cell centre.")
+    lng: float = Field(..., description="Longitude of the cell centre.")
+    opportunity_score: float = Field(..., description="Opportunity score for this cell (0–1).")
+    competition_density: float = Field(..., description="Competitors per km² in this cell.")
 
 
 class HeatmapResponse(BaseModel):
-    query: str
-    matched_category: str
-    cells: list[HeatmapCell]
+    query: str = Field(..., description="The original query as submitted.")
+    matched_category: str = Field(..., description="The business category the query was matched to.")
+    cells: list[HeatmapCell] = Field(..., description="All scored cells in the bbox, suitable for map rendering.")
 
 
 # ---------------------------------------------------------------------------
@@ -271,7 +291,21 @@ def _load_embeddings_safe() -> tuple[list[str], np.ndarray]:
 # Endpoint
 # ---------------------------------------------------------------------------
 
-@router.post("/recommendations", response_model=RecommendationResponse)
+@router.post(
+    "/recommendations",
+    response_model=RecommendationResponse,
+    summary="Get top location recommendations",
+    description=(
+        "Given a geographic bounding box and a business type, returns the top-k H3 cells "
+        "ranked by opportunity score — a weighted combination of low competition, high foot "
+        "traffic, area diversity, and semantic market saturation.\n\n"
+        "**Example:** find the best 5 areas to open a bakery in Tel Aviv:\n"
+        "```json\n"
+        '{"bbox": {"south": 32.03, "west": 34.74, "north": 32.13, "east": 34.84}, '
+        '"query": "bakery", "top_k": 5}\n'
+        "```"
+    ),
+)
 def get_recommendations(
     request: RecommendationRequest,
     generator: EmbeddingGenerator = Depends(get_embedding_generator),
@@ -342,7 +376,17 @@ def get_recommendations(
     )
 
 
-@router.post("/heatmap", response_model=HeatmapResponse)
+@router.post(
+    "/heatmap",
+    response_model=HeatmapResponse,
+    summary="Get opportunity heatmap",
+    description=(
+        "Returns an opportunity score for every H3 cell in the bounding box — "
+        "useful for rendering a colour-coded map of where to open a business.\n\n"
+        "Unlike /recommendations, this endpoint returns **all** cells (not just the top-k), "
+        "so it is suited for map visualisation rather than a ranked list."
+    ),
+)
 def get_heatmap(
     request: HeatmapRequest,
     generator: EmbeddingGenerator = Depends(get_embedding_generator),
