@@ -1,0 +1,6 @@
+$RESOURCE_GROUP="lie-rg"
+$LOCATION="westeurope"
+$ACR_NAME="lieregistryariel01"
+$APP_NAME="lie-api"
+$ENV_NAME="lie-env"
+$STORAGE_NAME="liestorageariel01"
