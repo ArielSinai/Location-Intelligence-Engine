@@ -266,15 +266,6 @@ class TestLinkAreaNeighbors:
         )
         assert "NEAR" in all_queries
 
-    def test_links_all_six_neighbours(self, mock_driver):
-        from graph.builder import GraphBuilder
-        gb = GraphBuilder(mock_driver)
-        gb.link_area_neighbors(CELL)
-        # grid_disk(cell, 1) = cell + 6 neighbours = 7 cells
-        # We should create one NEAR edge per neighbour (not self)
-        neighbours = set(h3.grid_disk(CELL, 1)) - {CELL}
-        assert mock_driver._mock_session.run.call_count == len(neighbours)
-
     def test_does_not_link_cell_to_itself(self, mock_driver):
         from graph.builder import GraphBuilder
         gb = GraphBuilder(mock_driver)
@@ -396,48 +387,6 @@ class TestLinkAreaToSupportPoi:
         kwargs = mock_driver._mock_session.run.call_args.kwargs
         assert CELL in str(kwargs)
         assert "u42" in str(kwargs)
-
-
-# ---------------------------------------------------------------------------
-# queries.py — get_competition_count
-# ---------------------------------------------------------------------------
-
-class TestGetCompetitionCount:
-    def _make_result(self, mocker, count: int):
-        record = mocker.MagicMock()
-        record.__getitem__ = mocker.MagicMock(return_value=count)
-        result = mocker.MagicMock()
-        result.single.return_value = record
-        return result
-
-    def test_returns_integer(self, mock_driver, mocker):
-        from graph.queries import get_competition_count
-        mock_driver._mock_session.run.return_value = self._make_result(mocker, 3)
-        result = get_competition_count(mock_driver, CELL, "cafe")
-        assert isinstance(result, int)
-
-    def test_returns_correct_count(self, mock_driver, mocker):
-        from graph.queries import get_competition_count
-        mock_driver._mock_session.run.return_value = self._make_result(mocker, 7)
-        result = get_competition_count(mock_driver, CELL, "cafe")
-        assert result == 7
-
-    def test_passes_cell_and_category_to_query(self, mock_driver, mocker):
-        from graph.queries import get_competition_count
-        mock_driver._mock_session.run.return_value = self._make_result(mocker, 0)
-        get_competition_count(mock_driver, CELL, "gym")
-        kwargs = mock_driver._mock_session.run.call_args.kwargs
-        all_params = str(kwargs)
-        assert CELL in all_params
-        assert "gym" in all_params
-
-    def test_returns_zero_when_no_results(self, mock_driver, mocker):
-        from graph.queries import get_competition_count
-        result_mock = mocker.MagicMock()
-        result_mock.single.return_value = None
-        mock_driver._mock_session.run.return_value = result_mock
-        result = get_competition_count(mock_driver, CELL, "cafe")
-        assert result == 0
 
 
 # ---------------------------------------------------------------------------

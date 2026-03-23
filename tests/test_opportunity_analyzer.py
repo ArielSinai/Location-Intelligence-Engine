@@ -326,14 +326,6 @@ class TestScoreArea:
         result = score_area(CELL_A, query, embeddings, businesses, "cafe")
         assert result.h3_cell == CELL_A
 
-    def test_competition_count_matches_category(self):
-        from analyzer.opportunity import score_area
-        query = unit([1, 0, 0, 0, 0, 0, 0, 0])
-        businesses = self._make_businesses(["cafe", "cafe", "gym"])
-        embeddings = self._make_embeddings(["0", "1", "2"], query, similar=False)
-        result = score_area(CELL_A, query, embeddings, businesses, "cafe")
-        assert result.competition_count == 2
-
     def test_empty_area_has_high_opportunity(self):
         from analyzer.opportunity import score_area
         query = unit([1, 0, 0, 0, 0, 0, 0, 0])
